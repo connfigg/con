@@ -251,34 +251,34 @@ deploy_new_service() {
         case $RES_MODE in
             1)
                 echo -e "\n${CYAN}--- AUTO PRESETS (QWIKLABS SAFE) ---${NC}"
-                echo "1) Basic Safe: 512Mi RAM + 1 vCPU (Min: 0, Max: 2, Concurrency: 100)"
-                echo "2) Balanced: 1Gi RAM + 1 vCPU (Min: 0, Max: 3, Concurrency: 130) ✅"
-                echo "3) High Preset: 2Gi RAM + 2 vCPU (Min: 0, Max: 3, Concurrency: 200)"
+                echo "1) Basic Safe: 512Mi RAM + 1 vCPU (Min: 1, Max: 1, Concurrency: 300)"
+                echo "2) Balanced: 1Gi RAM + 1 vCPU (Min: 1, Max: 1, Concurrency: 600) ✅"
+                echo "3) High Preset: 2Gi RAM + 2 vCPU (Min: 1, Max: 1, Concurrency: 800)"
                 read -p "Choose preset [1-3]: " AUTO_CHOICE
                 
                 case $AUTO_CHOICE in
                     1) 
                         # Basic Safe Preset (Best for Qwiklabs)
-                        MEMORY="512Mi"; CPU="1"; MIN_INST=0; MAX_INST=2; CONCURRENCY=100; TIMEOUT=3600
+                        MEMORY="512Mi"; CPU="1"; MIN_INST=1; MAX_INST=1; CONCURRENCY=300; TIMEOUT=3600
                         BILLING_FLAG="--cpu-throttling"
                         ;;
                     2) 
                         # Balanced Preset
-                        MEMORY="1Gi"; CPU="1"; MIN_INST=0; MAX_INST=3; CONCURRENCY=130; TIMEOUT=3600
+                        MEMORY="1Gi"; CPU="1"; MIN_INST=1; MAX_INST=1; CONCURRENCY=600; TIMEOUT=3600
                         BILLING_FLAG="--cpu-throttling"
                         ;;
                     3) 
                         # High Preset
-                        MEMORY="2Gi"; CPU="2"; MIN_INST=0; MAX_INST=3; CONCURRENCY=200; TIMEOUT=3600
+                        MEMORY="2Gi"; CPU="2"; MIN_INST=1; MAX_INST=1; CONCURRENCY=800; TIMEOUT=3600
                         BILLING_FLAG="--cpu-throttling"
                         ;;
                     *) 
-                        MEMORY="1Gi"; CPU="1"; MIN_INST=0; MAX_INST=3; CONCURRENCY=130; TIMEOUT=3600
+                        MEMORY="1Gi"; CPU="1"; MIN_INST=1; MAX_INST=1; CONCURRENCY=600; TIMEOUT=3600
                         BILLING_FLAG="--cpu-throttling"
                         echo -e "${YELLOW}Using Balanced preset${NC}"
                         ;;
                 esac
-                echo -e "${GREEN}✅ Applied Preset: $MEMORY | $CPU vCPU | Min: $MIN_INST | Max: $MAX_INST | Concurrency: $CONCURRENCY${NC}"
+                echo -e "${GREEN}✅ Applied Preset Memory: $MEMORY | vCPU: $CPU  | Min: $MIN_INST | Max: $MAX_INST | Concurrency: $CONCURRENCY${NC}"
                 break
                 ;;
             2)
