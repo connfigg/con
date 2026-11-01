@@ -3,9 +3,10 @@ set -euo pipefail
 # =========================================
 # 🚀 GCP-XRAY MULTI-ENGINE DEPLOYER — WS-ONLY EDITION
 # ✅ ENGINES: OPENRESTY, ENVOY, HAPROXY, CADDY, SING-BOX
-# ✅ INCLUDES CUSTOM USER-AGENT HEADERS
+# ✅ INCLUDES CUSTOM USER-AGENT HEADERS & DIRECT PANEL
 # ✅ UPDATE: Artifact Registry Support (Auto-Create Repo)
-# ✅ FIXED: Qwiklabs/Skills Boost Quotas & Suspension Safety
+# ✅ FIXED: Invalid image tag output & clean stderr logging
+# ✅ NEW: Interactive Decoy Panel with Direct NetMod Config Copy
 # =========================================
 GREEN='\033[1;32m'
 RED='\033[1;31m'
@@ -125,7 +126,7 @@ list_deployed_services() {
 
             MEMORY=$(echo "$DETAILS" | jq -r '.spec.template.spec.containers[0].resources.limits.memory // "1Gi"')
             CPU=$(echo "$DETAILS" | jq -r '.spec.template.spec.containers[0].resources.limits.cpu // "1"')
-            BILLING=$(echo "$DETAILS" | jq -r '.spec.template.spec.billingMode // "Request Based"' | sed 's/_/ /g;s/^./\U&/')
+            BILLING=$(echo "$DETAILS" | jq -r '.spec.template.spec.billingMode // "Instance Based"' | sed 's/_/ /g;s/^./\U&/')
             MIN_INST=$(echo "$DETAILS" | jq -r '.spec.template.spec.minInstances // "0"')
             MAX_INST=$(echo "$DETAILS" | jq -r '.spec.template.spec.maxInstances // "1"')
             CONCURRENCY=$(echo "$DETAILS" | jq -r '.spec.template.spec.containerConcurrency // "300"')
@@ -243,40 +244,25 @@ deploy_new_service() {
     echo -e "\n${CYAN}=========================================${NC}"
     echo -e "${GREEN} RESOURCE CONFIG MODE${NC}"
     echo -e "${CYAN}=========================================${NC}"
-    echo -e "${GREEN}1) AUTO PRESETS | Recommended (Qwiklabs Safe)${NC}"
+    echo -e "${GREEN}1) AUTO PRESETS | Recommended (Instance-Based)${NC}"
     echo -e "${YELLOW}2) MANUAL SETUP | Full Memory & vCPU Range${NC}"
 
     while true; do
         read -p "Select Mode [1-2]: " RES_MODE
         case $RES_MODE in
             1)
-                echo -e "\n${CYAN}--- AUTO PRESETS (QWIKLABS SAFE) ---${NC}"
-                echo "1) Basic Safe: 512Mi RAM + 1 vCPU (Min: 0, Max: 2, Concurrency: 100)"
-                echo "2) Balanced: 1Gi RAM + 1 vCPU (Min: 0, Max: 3, Concurrency: 130) ✅"
-                echo "3) High Preset: 2Gi RAM + 2 vCPU (Min: 0, Max: 3, Concurrency: 200)"
+                echo -e "\n${CYAN}--- AUTO PRESETS ---${NC}"
+                echo "1) Basic: 1Gi RAM + 1 vCPU (Min: 1, Max: 3, Concurrency: 100)"
+                echo "2) Balanced: 2Gi RAM + 2 vCPU (Min: 1, Max: 5, Concurrency: 130) ✅"
+                echo "3) Turbo: 4Gi RAM + 4 vCPU (Min: 1, Max: 4, Concurrency: 200)"
                 read -p "Choose preset [1-3]: " AUTO_CHOICE
-                
+                BILLING_MODE="instance"
+                BILLING_FLAG="--no-cpu-throttling"
                 case $AUTO_CHOICE in
-                    1) 
-                        # Basic Safe Preset (Best for Qwiklabs)
-                        MEMORY="512Mi"; CPU="1"; MIN_INST=0; MAX_INST=2; CONCURRENCY=100; TIMEOUT=3600
-                        BILLING_FLAG="--cpu-throttling"
-                        ;;
-                    2) 
-                        # Balanced Preset
-                        MEMORY="1Gi"; CPU="1"; MIN_INST=0; MAX_INST=3; CONCURRENCY=130; TIMEOUT=3600
-                        BILLING_FLAG="--cpu-throttling"
-                        ;;
-                    3) 
-                        # High Preset
-                        MEMORY="2Gi"; CPU="2"; MIN_INST=0; MAX_INST=3; CONCURRENCY=200; TIMEOUT=3600
-                        BILLING_FLAG="--cpu-throttling"
-                        ;;
-                    *) 
-                        MEMORY="1Gi"; CPU="1"; MIN_INST=0; MAX_INST=3; CONCURRENCY=130; TIMEOUT=3600
-                        BILLING_FLAG="--cpu-throttling"
-                        echo -e "${YELLOW}Using Balanced preset${NC}"
-                        ;;
+                    1) MEMORY="1Gi"; CPU="1"; MIN_INST=1; MAX_INST=3; CONCURRENCY=100; TIMEOUT=3600 ;;
+                    2) MEMORY="2Gi"; CPU="2"; MIN_INST=1; MAX_INST=5; CONCURRENCY=130; TIMEOUT=3600 ;;
+                    3) MEMORY="4Gi"; CPU="4"; MIN_INST=1; MAX_INST=4; CONCURRENCY=200; TIMEOUT=3600 ;;
+                    *) MEMORY="2Gi"; CPU="2"; MIN_INST=1; MAX_INST=5; CONCURRENCY=130; TIMEOUT=3600; echo -e "${YELLOW}Using Balanced preset${NC}" ;;
                 esac
                 echo -e "${GREEN}✅ Applied Preset: $MEMORY | $CPU vCPU | Min: $MIN_INST | Max: $MAX_INST | Concurrency: $CONCURRENCY${NC}"
                 break
@@ -285,7 +271,7 @@ deploy_new_service() {
                 echo -e "\n${CYAN}=========================================${NC}"
                 echo -e "${GREEN} BILLING MODE${NC}"
                 echo -e "${CYAN}=========================================${NC}"
-                echo -e "${YELLOW}Request-Based is highly recommended for Qwiklabs safety${NC}"
+                echo -e "${YELLOW}Instance-Based = Stable, No Throttling${NC}"
                 echo "1) Request-Based | 2) Instance-Based"
                 while true; do
                     read -p "Select [1-2]: " BILLING_CHOICE
@@ -344,46 +330,7 @@ deploy_new_service() {
     trap 'rm -rf "$BUILD_DIR"' EXIT
     cd "$BUILD_DIR" || exit 1
 
-    cat > index.html <<'EOF'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>System Status | Cloud Gateway</title>
-<style>
-:root { --bg: #0b0f19; --card: #111827; --border: #1f2937; --text: #9ca3af; --white: #f9fafb; --green: #10b981; }
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-body { background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; max-width: 440px; width: 100%; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
-.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-.title { color: var(--white); font-size: 18px; font-weight: 600; }
-.badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.1); color: var(--green); padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
-.dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
-.metrics { display: grid; gap: 12px; margin-bottom: 24px; }
-.metric-item { display: flex; justify-content: space-between; font-size: 14px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
-.metric-item span:last-child { color: var(--white); font-weight: 500; }
-.footer { font-size: 12px; text-align: center; color: #6b7280; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-</style>
-</head>
-<body>
-<div class="card">
-<div class="header">
-<div class="title">Application Gateway</div>
-<div class="badge"><span class="dot"></span> Operational</div>
-</div>
-<div class="metrics">
-<div class="metric-item"><span>HTTP/2 Proxy Ingress</span><span>Active</span></div>
-<div class="metric-item"><span>Global Load Balancer</span><span>Normal</span></div>
-<div class="metric-item"><span>Avg. Latency</span><span>&lt; 15ms</span></div>
-<div class="metric-item"><span>System Uptime</span><span>99.99%</span></div>
-</div>
-<div class="footer">Cloud Infrastructure &copy; 2026. All Systems Nominal.</div>
-</div>
-</body>
-</html>
-EOF
+    touch index.html
 
     clear
     echo ""
@@ -902,6 +849,86 @@ EOF
     DOMAIN=$(echo "$CLOUD_RUN_URL" | sed 's|https://||')
     CANONICAL_LINK="https://$DOMAIN"
 
+    # ==============================================
+    # GENERATE DIRECT VISIBLE PANEL (NO 3-CLICK NEEDED)
+    # ==============================================
+    cat > index.html <<EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Status | Cloud Gateway</title>
+<style>
+:root { --bg: #0b0f19; --card: #111827; --border: #1f2937; --text: #9ca3af; --white: #f9fafb; --green: #10b981; --accent: #3b82f6; }
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; max-width: 480px; width: 100%; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.title { color: var(--white); font-size: 18px; font-weight: 600; }
+.badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.1); color: var(--green); padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+.dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+.metrics { display: grid; gap: 10px; margin-bottom: 20px; }
+.metric-item { display: flex; justify-content: space-between; font-size: 14px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.metric-item span:last-child { color: var(--white); font-weight: 500; }
+.config-section { margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px; display: block; }
+.config-box { background: #07090e; border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; font-family: monospace; font-size: 11px; color: #38bdf8; word-break: break-all; position: relative; }
+.copy-btn { background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; width: 100%; margin-top: 4px; transition: background 0.2s; }
+.copy-btn:hover { background: #2563eb; }
+.footer { font-size: 12px; text-align: center; color: #6b7280; margin-top: 15px; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+<div class="card">
+<div class="header">
+<div class="title">Application Gateway</div>
+<div class="badge"><span class="dot"></span> Operational</div>
+</div>
+
+<div class="metrics" id="statusView">
+<div class="metric-item"><span>HTTP/2 Proxy Ingress</span><span>Active</span></div>
+<div class="metric-item"><span>Global Load Balancer</span><span>Normal</span></div>
+<div class="metric-item"><span>Avg. Latency</span><span>&lt; 15ms</span></div>
+<div class="metric-item"><span>System Uptime</span><span>99.99%</span></div>
+</div>
+
+<div class="config-section" id="configView">
+<p style="color: var(--white); font-size: 13px; margin-bottom: 8px; font-weight: 600;">⚡ NetMod Configs Ready:</p>
+
+<div style="font-size: 12px; color: var(--white); margin-bottom: 4px;">Trojan WS (SNI Masked):</div>
+<div class="config-box" id="trojanConfig">trojan://gcp-xray@firebaseremoteconfigrealtime.googleapis.com:443?type=ws&host=$DOMAIN&headerType=none&path=%2ftrojan-ws&security=tls&sni=firebaseremoteconfigrealtime.googleapis.com#GCP-Trojan-WS</div>
+<button class="copy-btn" onclick="copyText('trojanConfig', this)">Copy Trojan Config</button>
+
+<div style="font-size: 12px; color: var(--white); margin-top: 10px; margin-bottom: 4px;">VLESS WS (SNI Masked):</div>
+<div class="config-box" id="vlessConfig">vless://a1b2c3d4-5678-40ef-98ab-cdef01234567@firebaseremoteconfigrealtime.googleapis.com:443?encryption=none&type=ws&host=$DOMAIN&headerType=none&path=%2fvless-ws&security=tls&sni=firebaseremoteconfigrealtime.googleapis.com#GCP-VLESS-WS</div>
+<button class="copy-btn" onclick="copyText('vlessConfig', this)">Copy VLESS Config</button>
+</div>
+
+<div class="footer">Cloud Infrastructure &copy; 2026. All Systems Nominal.</div>
+</div>
+
+<script>
+function copyText(elementId, btn) {
+    const text = document.getElementById(elementId).innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = btn.innerText;
+        btn.innerText = "Copied! ✅";
+        btn.style.background = "#10b981";
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.style.background = "";
+        }, 2000);
+    });
+}
+</script>
+</body>
+</html>
+EOF
+
+    gcloud builds submit --project="$PROJECT_ID" --tag "$IMAGE_TAG" . --quiet
+    gcloud run services update "$CLOUD_RUN_SERVICE_NAME" --image "$IMAGE_TAG" --region "$REGION" --project="$PROJECT_ID" --quiet
+
     clear
     echo -e "\n${CYAN}=========================================${NC}"
     echo -e "${GREEN}SCRIPT DEPLOYMENT SUCCESS!"
@@ -910,8 +937,8 @@ EOF
     echo -e "${GREEN}THIS SCRIPT IS NOT FOR SALE"
     echo -e "${GREEN}THIS SCRIPT IS OWNED & MADE BY CON FIG"
     echo -e "${CYAN}=========================================${NC}"
-    echo -e "${GREEN}🔗 SHORT LINK:${NC} $CANONICAL_LINK"
-    echo -e "${GREEN}💚 HEALTH CHECK:${NC} $CANONICAL_LINK/health"
+    echo -e "${GREEN}🔗 SHORT LINK (Configs Visible Directly):${NC} $CANONICAL_LINK"
+    echo -e "${GREEN}💚 HEALTH CHECK:${NC} ${CANONICAL_LINK}/health"
     echo -e "${CYAN}-----------------------------------------${NC}"
     echo -e "${GREEN}🔌 AVAILABLE ENDPOINTS:${NC}"
     echo -e " Trojan-WS: ${CANONICAL_LINK}/trojan-ws"
@@ -921,12 +948,12 @@ EOF
     echo -e " ✅ Custom User-Agent Header Preserved"
     echo -e " ✅ Artifact Registry Auto-Setup ✨ NEW"
     echo -e " ✅ Fixed 400 Bad Request (Forwarded Host & Headers)"
-    echo -e " ✅ Qwiklabs & Skills Boost Suspension Safe"
+    echo -e " ✅ Bypassed Restricted Host Kernel/Sysctl Modifications"
     echo -e " ✅ RAM Disk (tmpfs) High-Speed Mounts"
     echo -e " ✅ Domain & TLS Masking Engine (Fake Server Fingerprint)"
     echo -e " ✅ Anti-DDoS & Container Limits Compliance"
     echo -e " ✅ Log Cleaner & Supervisord Integration"
-    echo -e " ✅ Decoy Gateway Page (Static Asset)"
+    echo -e " ✅ Direct Visible Panel with NetMod One-Click Copy ✨ NEW"
     echo ""
 
     read -p "Press [Enter] to return to Main Menu..."
