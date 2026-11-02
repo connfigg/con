@@ -858,7 +858,7 @@ EOF
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>System Status | Cloud Gateway</title>
+<title>CON FIG | Cloud Gateway</title>
 <style>
 :root { --bg: #0b0f19; --card: #111827; --border: #1f2937; --text: #9ca3af; --white: #f9fafb; --green: #10b981; --accent: #3b82f6; }
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -882,7 +882,7 @@ body { background: var(--bg); color: var(--text); display: flex; align-items: ce
 <body>
 <div class="card">
 <div class="header">
-<div class="title">Application Gateway</div>
+<div class="title">ConFig Application Gateway</div>
 <div class="badge"><span class="dot"></span> Operational</div>
 </div>
 
@@ -894,7 +894,7 @@ body { background: var(--bg); color: var(--text); display: flex; align-items: ce
 </div>
 
 <div class="config-section" id="configView">
-<p style="color: var(--white); font-size: 13px; margin-bottom: 8px; font-weight: 600;">⚡ NetMod Configs Ready:</p>
+<p style="color: var(--white); font-size: 13px; margin-bottom: 8px; font-weight: 600;">⚡ STS NOLOAD NetMod Configs:</p>
 
 <div style="font-size: 12px; color: var(--white); margin-bottom: 4px;">Trojan WS (SNI Masked):</div>
 <div class="config-box" id="trojanConfig">trojan://gcp-xray@firebaseremoteconfigrealtime.googleapis.com:443?type=ws&host=$DOMAIN&headerType=none&path=%2ftrojan-ws&security=tls&sni=firebaseremoteconfigrealtime.googleapis.com#GCP-Trojan-WS</div>
